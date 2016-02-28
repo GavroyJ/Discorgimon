@@ -8,21 +8,6 @@ using System.Collections;
 using System.IO;
 using Newtonsoft.Json;
 using Extensions;
-/*
-    //Add this to your main code:
-
-    public deleage void DiscorgimonOutputCallback(string message);
-
-    DiscorgimonOutputCallback discorgimonOutput = new DiscorgimonOutputCallback(Output);
-    Discorgimon discorgimon = new Discorgimon(discorgimonOutput);
-    Thread discorgimonThread = new Thread(new ThreadStart(discorgimon.Begin));
-    discorgimonThread.Start();
-
-    static void Output(string message)
-    {
-        //Add code to output message to chat here
-    }
-*/
 
 namespace Discorgimon
 {
@@ -53,12 +38,15 @@ namespace Discorgimon
 
     public class Discorgimon
     {
+        //Allows Debug Commands and Debug Output
+        public const bool DEBUG = true;
+
         //Public Datamembers
         public DiscorgimonOutputCallback outputCallbackMethod;
         public bool programRunning;
 
         //Private Datamembers
-        List<Character> players;
+        List<Discorgi> players;
         InputMessage input;
         Random random;
 
@@ -68,7 +56,7 @@ namespace Discorgimon
         {
             outputCallbackMethod = callback;
             programRunning = true;
-            players = new List<Character>();
+            players = new List<Discorgi>();
             random = new Random();
         }
 
@@ -93,18 +81,29 @@ namespace Discorgimon
         public void Input(string user, string message)
         {
             input = new InputMessage();
-            input.User = user; //TODO remove hardcode
-            input.Command = message.Substring(0, message.IndexOf(' ')).ToLower();
-            input.Parameter = message.IndexOf(' ') > 0 ? message.Substring(message.IndexOf(' ') + 1) : "";
+            input.User = user;
+            if (message.Contains(" "))
+            {
+                input.Command = message.Substring(0, message.IndexOf(' ')).ToLower();
+                input.Parameter = message.IndexOf(' ') > 0 ? message.Substring(message.IndexOf(' ') + 1) : "";
+            }
+            else
+            {
+                input.Command = message;
+                input.Parameter = "";
+            }
 
             switch (input.Command)
             {
-                case "create": CreateCharacter(user); break;
-                case "help": PrintHelp(input.Parameter); break;
-                case "show": ShowPlayer(input.Parameter); break;
-                case "attack": Attack(input.Parameter); break;
+                case "catch": CreateDiscorgi(); break;
+                case "release": ReleaseDiscorgi();break;
+                case "help": PrintHelp(); break;
+                case "show": ShowPlayer(); break;
+                case "attack": Attack(); break;
                 case "exit": programRunning = false; break;
-                case "level": Level(input.Parameter); break;
+                    //DEBUG
+                case "dlevel": DEBUGLevel(); break;
+                case "dcreate": DEBUGCreate(); break;
                 default: Output($"Unknown Command: {input.Command}"); break;
             }
         }
@@ -112,33 +111,28 @@ namespace Discorgimon
         //Private Methods:
         void Refresh()
         {
-            foreach (Character player in players)
+            foreach (Discorgi player in players)
             {
-                if (player.Energy < 3)
+                if (player.Energy < player.MaxEnergy)
                     player.Energy++;
+                if (player.Health < player.MaxHealth)
+                    player.Health++;
             }
         }
 
-        int FindPlayer(string playerName)
+        int FindPlayer(string ownerName)
         {
             int playerIndex = 0;
             bool searching = true;
 
             while (searching && playerIndex < players.Count)
-            {
-                if (players[playerIndex].Name.Equals(playerName))
-                {
+                if (players[playerIndex].Owner.Equals(ownerName,StringComparison.OrdinalIgnoreCase))
                     searching = false;
-                }
                 else
-                {
                     playerIndex++;
-                }
-            }
             if (searching)
-            {
                 playerIndex = -1;
-            }
+
             return playerIndex;
         }
 
@@ -148,32 +142,57 @@ namespace Discorgimon
                 outputCallbackMethod(message);
         }
 
-        void CreateCharacter(string charactername)
+        void CreateDiscorgi()
         {
-            Character player = new Character(charactername);
-            players.Add(player);
+            int playerIndex = FindPlayer(input.User);
 
-            Output($"{player.Name} has been granted a Discorgi!");
-        }
-
-        void PrintHelp(string topic)
-        {
-            Output("Type, \"I wanna catch em all\" to join the battle.");
-        }
-
-        void ShowPlayer(string playerName)
-        {
-            if (!playerName.Equals(""))
+            if (!playerIndex.IsFound())
             {
-                int playerIndex = FindPlayer(playerName);
+                Discorgi player = new Discorgi(input.User, input.Parameter.Equals("") ? Discorgi.RandomName() : input.Parameter);
+
+                players.Add(player);
+
+                Output($"{input.User} captured a Discorgi wearing **{player.Accessory}** named **【{player.PetName}】**!");
+            }
+            else { Output($"You already have **【{players[playerIndex].PetName}】**"); }
+        }
+
+        void ReleaseDiscorgi()
+        {
+            int playerIndex = FindPlayer(input.User);
+
+            if (playerIndex.IsFound())
+            {
+                Output($"{input.User} punts **【{players[playerIndex].PetName}】** back into the wild!");
+
+                players.RemoveAt(playerIndex);
+            }
+            else { Output($"You don't have a Discrogi."); }
+        }
+
+        void PrintHelp()
+        {
+            Output("Type, \"Catch\" to get your own Discorgi.");
+        }
+
+        void ShowPlayer()
+        {
+            if (!input.Parameter.Equals(""))
+            {
+                int playerIndex = FindPlayer(input.Parameter);
 
                 if (playerIndex.IsFound()) //Player Found
                 {
-                    Output($"{players[playerIndex].Name}'s {players[playerIndex].Pet} is level {players[playerIndex].Level}");
+                    Output($"**【{players[playerIndex].PetName}】** is {players[playerIndex].GetStatus()}");
+                    Output($"Level: {players[playerIndex].Level}");
+                    Output($"Wearing: {players[playerIndex].Accessory}");
+                    Output($"Kills: {players[playerIndex].Kills}");
+                    Output($"Damage Dealt: {players[playerIndex].DamageDone}");
+                    Output($"Damage Taken: {players[playerIndex].DamageTaken}");
                 }
                 else
                 {
-                    Output($"{playerName} doesn't have a Discori.");
+                    Output($"{input.Parameter} doesn't have a Discori.");
                 }
             }
             else
@@ -200,12 +219,12 @@ namespace Discorgimon
                 using (StreamReader file = File.OpenText("DQCharacterData.json"))
                 {
                     JsonSerializer serializer = new JsonSerializer();
-                    players = (List<Character>)serializer.Deserialize(file, typeof(List<Character>));
+                    players = (List<Discorgi>)serializer.Deserialize(file, typeof(List<Discorgi>));
                 }
             }
         }
 
-        void Attack(string message)
+        void Attack()
         {
             if (!input.Parameter.Equals(""))
             {
@@ -226,17 +245,18 @@ namespace Discorgimon
                             players[defIndex].Health -= damage;
                             players[defIndex].DamageTaken += damage;
 
-                            Output($"{players[atkIndex].Name}'s level {players[atkIndex].Level} {players[atkIndex].Pet} deals {damage} damage to {players[defIndex].Name}'s {players[defIndex].Pet}");
+                            Output($"**【{players[atkIndex].PetName}】** deals {damage} damage to **【{players[defIndex].PetName}】**");
 
                             if (players[defIndex].Health <= 0)
                             {
-                                Output($"{players[defIndex].Name}'s {players[defIndex].Pet} has died.");
-                                players.RemoveAt(defIndex);
+                                Output($"{players[defIndex].PetName} has died.");
 
                                 players[atkIndex].Kills++;
+
+                                players.RemoveAt(defIndex);
                             }
                         }
-                        else { Output($"Your {players[atkIndex].Pet} is too tired."); }
+                        else { Output($"**【{players[atkIndex].PetName} is too tired."); }
                     }
                     else { Output($"{input.Parameter} doesn't have a Discori."); }
                 }
@@ -246,13 +266,23 @@ namespace Discorgimon
         }
 
         //DEBUG COMMANDS
-        public const bool DEBUG = true;
-        void Level(string message)
+        void DEBUGLevel()
         {
             if (DEBUG)
-                players[FindPlayer(message)].Level++;
+                players[FindPlayer(input.Parameter)].LevelUp();
         }
 
+        //Command: dcreate <owner name>
+        //Description: Creates a discorgi named DEBUG with provided owner
+        void DEBUGCreate()
+        {
+            if (DEBUG)
+            {
+                input.User = input.Parameter;
+                input.Parameter = "DEBUG";
+                CreateDiscorgi();
+            }
+        }
         void Debug(string message)
         {
             if (DEBUG && outputCallbackMethod != null)
@@ -260,17 +290,19 @@ namespace Discorgimon
         }
     }
 
-    class Character
+    class Discorgi
     {
         //Player's Data
-        public string Name { get; set; }
-        public string Pet { get; set; }
+        public string Owner { get; set; }
+        public string PetName { get; set; }
         public int Level { get; set; }
         public int MaxHealth { get; set; }
         public int Health { get; set; }
+        public int MaxEnergy { get; set; }
+        public int Energy { get; set; }
         public int Attack { get; set; }
         public double Defence { get; set; }
-        public int Energy { get; set; }
+        public string Accessory { get; set; }
 
         //Player's Progress History
         public int AttacksMade { get; set; }
@@ -278,21 +310,137 @@ namespace Discorgimon
         public int DamageTaken { get; set; }
         public int Kills { get; set; }
 
-        public Character(string playerName)
+        public Discorgi(string owner, string pet)
         {
-            Name = playerName;
-            Pet = "Discorgi";
+            Owner = owner;
+            PetName = pet;
             Level = 1;
             MaxHealth = 100;
-            Health = 10;
+            Health = MaxHealth;
+            MaxEnergy = 3;
+            Energy = MaxEnergy;
             Attack = 10;
             Defence = 0;
-            Energy = 3;
+            Accessory = RandomAccesory();
+
             AttacksMade = 0;
             DamageDone = 0;
             DamageTaken = 0;
             Kills = 0;
         }
+
+        internal string GetStatus()
+        {
+            //not dead yet
+            //breathing heavy
+
+            //<playername> is"
+            string status = "doing AWESOME!";
+
+            if (Health < MaxHealth * 0.2)
+                status = "pretty fucked up...";
+            else if (Health < MaxHealth * 0.6)
+                status = "not great";
+            else if (Health < MaxHealth * 0.8)
+                status = "fine";
+
+             return status;
+        }
+
+        internal void LevelUp()
+        {
+            Level++;
+            MaxHealth += 10;
+            Attack += 5;
+            Defence += 0.1;
+        }
+
+
+        static String[] Names =
+        {
+            "Angel",
+            "Bagel",
+            "Bellatrix",
+            "Biscuit",
+            "Bobbafett",
+            "Bubbles",
+            "Candy",
+            "Cimmanom",
+            "Cleopatra",
+            "Cupcake",
+            "Doc",
+            "Felix",
+            "Jade",
+            "Marshmellow",
+            "Muggles",
+            "Noodle",
+            "Officer McSmiggles",
+            "Paddington",
+            "Pixie",
+            "President Dwayne Elizondo Mountain Dew Herbert Camacho",
+            "Robin Hood",
+            "Ruby",
+            "Shady Dave",
+            "Tank",
+            "Tonka",
+            "Waddles",
+            "Waffle",
+            "Wilbur",
+            "Yoshi",
+            "Zelda",
+        };
+
+        internal static string RandomName()
+        {
+            Random random = new Random();
+
+            return Names[random.Next(Names.Length)];
+        }
+
+        static String[] Accesories =
+        {
+            //wearing 
+            "glasses",
+            "a headband",
+            "a chefs hat",
+            "a thor costume",
+            "nunchucks",
+            "the cursed blade Muramasa",
+            "earings",
+            "a snuggie",
+            "their childhood blanket",
+            "a frying pan",
+            "slippers",
+            "a waffle iron",
+            "glitter",
+            "sunglasses",
+            "a penguin costume",
+            "a hairnet",
+            "a thing",
+            "a hoodie",
+            "a houseplant",
+            "nothing ;)",
+            "a broken discoball",
+            "a letters jacket",
+            "a football helmet",
+            "a moustache",
+            "an octopus hat",
+            "a graduation gown",
+            "too much cologne",
+            "a poncho",
+            "a helmet",
+            "a noose :(",
+            "16 dog years of regret",
+            "a no ragrets tattoo",
+        };
+
+        internal static string RandomAccesory()
+        {
+            Random random = new Random();
+
+            return Accesories[random.Next(Accesories.Length)];
+        }
+
     }
 
     struct InputMessage

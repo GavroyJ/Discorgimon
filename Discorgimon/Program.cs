@@ -11,12 +11,12 @@ using Extensions;
 /*
     //Add this to your main code:
 
-    public deleage void DiscordQuestOutputCallback(string message);
+    public deleage void DiscorgimonOutputCallback(string message);
 
-    DiscordQuestOutputCallback discordQuestOutput = new DiscordQuestOutputCallback(Output);
-    DiscordQuest discordQuest = new DiscordQuest(discordQuestOutput);
-    Thread discordQuestThread = new Thread(new ThreadStart(discordQuest.Begin));
-    discordQuestThread.Start();
+    DiscorgimonOutputCallback discorgimonOutput = new DiscorgimonOutputCallback(Output);
+    Discorgimon discorgimon = new Discorgimon(discorgimonOutput);
+    Thread discorgimonThread = new Thread(new ThreadStart(discorgimon.Begin));
+    discorgimonThread.Start();
 
     static void Output(string message)
     {
@@ -26,21 +26,21 @@ using Extensions;
 
 namespace Discorgimon
 {
-    public delegate void DiscordQuestOutputCallback(string message);
+    public delegate void DiscorgimonOutputCallback(string message);
 
     class Program
     {
         static void Main(string[] args)
         {
-            DiscordQuestOutputCallback discordQuestOutput = new DiscordQuestOutputCallback(Output);
-            DiscordQuest discordQuest = new DiscordQuest(discordQuestOutput);
-            Thread discordQuestThread = new Thread(new ThreadStart(discordQuest.Begin));
-            discordQuestThread.Start();
+            DiscorgimonOutputCallback discorgimonOutput = new DiscorgimonOutputCallback(Output);
+            Discorgimon discorgimon = new Discorgimon(discorgimonOutput);
+            Thread discorgimonThread = new Thread(new ThreadStart(discorgimon.Begin));
+            discorgimonThread.Start();
 
             do
             {
-                discordQuest.Input("Josh", Console.ReadLine());
-            } while (discordQuest.programRunning);
+                discorgimon.Input("Josh", Console.ReadLine());
+            } while (discorgimon.programRunning);
 
         }
 
@@ -51,10 +51,10 @@ namespace Discorgimon
 
     }
 
-    public class DiscordQuest
+    public class Discorgimon
     {
         //Public Datamembers
-        public DiscordQuestOutputCallback outputCallbackMethod;
+        public DiscorgimonOutputCallback outputCallbackMethod;
         public bool programRunning;
 
         //Private Datamembers
@@ -64,7 +64,7 @@ namespace Discorgimon
 
         //Constructor
         //callback: Method which outputs data to the text area
-        public DiscordQuest(DiscordQuestOutputCallback callback)
+        public Discorgimon(DiscorgimonOutputCallback callback)
         {
             outputCallbackMethod = callback;
             programRunning = true;
@@ -305,7 +305,7 @@ namespace Discorgimon
 
 namespace Extensions
 {
-    public static class DiscordQuestExtension
+    public static class DiscorgimonExtension
     {
         public static bool IsFound(this int i)
         {

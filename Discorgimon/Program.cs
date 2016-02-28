@@ -39,7 +39,7 @@ namespace Discorgimon
 
             do
             {
-                discordQuest.Input(Console.ReadLine());
+                discordQuest.Input("Josh", Console.ReadLine());
             } while (discordQuest.programRunning);
 
         }
@@ -90,16 +90,16 @@ namespace Discorgimon
         //Input method
         //message: user input
         //  expected format - "<UserName> <command>"
-        public void Input(string message)
+        public void Input(string user, string message)
         {
             input = new InputMessage();
-            input.User = "a"; //TODO remove hardcode
+            input.User = user; //TODO remove hardcode
             input.Command = message.Substring(0, message.IndexOf(' ')).ToLower();
             input.Parameter = message.IndexOf(' ') > 0 ? message.Substring(message.IndexOf(' ') + 1) : "";
 
             switch (input.Command)
             {
-                case "create": CreateCharacter(input.Parameter); break;
+                case "create": CreateCharacter(user); break;
                 case "help": PrintHelp(input.Parameter); break;
                 case "show": ShowPlayer(input.Parameter); break;
                 case "attack": Attack(input.Parameter); break;

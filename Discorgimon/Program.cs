@@ -221,17 +221,11 @@ namespace Discorgimon
 
             if (playerIndex.IsFound()) //Player Found
             {
-                Output($"**【{players[playerIndex].PetName}】** is {players[playerIndex].GetStatus()}");
-                Output($"Level: {players[playerIndex].Level}");
-                Output($"Wearing: {players[playerIndex].Accessory}");
-                Output($"Kills: {players[playerIndex].Kills}");
-                Output($"Healing Done: {players[playerIndex].HealingDone}");
-                Output($"Damage Dealt: {players[playerIndex].DamageDone}");
-                Output($"Damage Taken: {players[playerIndex].DamageTaken}");
+                Output($"**【{players[playerIndex].PetName}】** is {players[playerIndex].GetStatus()}\n```Level: {players[playerIndex].Level}\nWearing: {players[playerIndex].Accessory}\nKills: {players[playerIndex].Kills}\nHealing Done: {players[playerIndex].HealingDone}\nDamage Dealt: {players[playerIndex].DamageDone}\nDamage Taken: {players[playerIndex].DamageTaken}```");
             }
             else
             {
-                Output($"{(input.Parameter.Equals("") ? input.User : input.Parameter)} doesn't have a Discori.");
+                Output($"{(input.Parameter.Equals("") ? input.User : input.Parameter)} doesn't have a Discorgi.");
             }
         }
 
@@ -245,7 +239,7 @@ namespace Discorgimon
             }
             else
             {
-                Output($"{(input.Parameter.Equals("") ? input.User : input.Parameter)} doesn't have a Discori.");
+                Output($"{(input.Parameter.Equals("") ? input.User : input.Parameter)} doesn't have a Discorgi.");
             }
         }
 
@@ -371,7 +365,7 @@ namespace Discorgimon
                     {
                         validity = true;
                     }
-                    else { Output($"{input.Parameter} doesn't have a Discori."); }
+                    else { Output($"{input.Parameter} doesn't have a Discorgi."); }
                 }
                 else { Output($"You have to catch a Discorgi first."); }
             }
@@ -390,7 +384,7 @@ namespace Discorgimon
                 Discorgi player = new Discorgi("Enemy", Discorgi.RandomEnemyName());
 
                 //LEVEL UP!
-                int enemyLevel = random.Next(1, 10);
+                int enemyLevel = random.Next(0, 5);
                 for (int i = 0; i < enemyLevel; i++) { player.LevelUp(); }
 
                 players.Add(player);
@@ -434,13 +428,21 @@ namespace Discorgimon
 
         void ShowAll()
         {
+            bool firstpass = true;
+            string output = string.Empty;
             foreach(Discorgi player in players)
             {
-                if(!player.Owner.Equals("Enemy"))
+                if(firstpass)
                 {
-                    Output($"{player.Owner} - {player.PetName} ({player.Level})");
+                    firstpass = false;
+                    output += ($"```{player.Owner} - {player.PetName} ({player.Level})");
+                }
+                else if(!player.Owner.Equals("Enemy"))
+                {
+                    output+= ($"\n{player.Owner} - {player.PetName} ({player.Level})");
                 }
             }
+            Output(output + "```");
         }
 
         //DEBUG COMMANDS

@@ -123,11 +123,17 @@ namespace Discorgimon
                 case "attack": Attack(); break;
                 case "heal": Heal(); break;
                 case "showall": ShowAll(); break;
-                    //DEBUG
+                //DEBUG
+                case "testing": testing(); break;
                 case "dlevel": DEBUGLevel(); break;
                 case "dcreate": DEBUGCreate(); break;
                 default: Output($"You failed to {input.Command}"); break;
             }
+        }
+
+        void testing()
+        {
+            Output("```testing");
         }
 
         //Private Methods:

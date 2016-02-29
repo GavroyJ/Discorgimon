@@ -41,7 +41,10 @@ namespace Discorgimon
         //Allows Debug Commands and Debug Output
         public const bool DEBUG = true;
 
-        public const int REGEN_IN_SECONDS = 10;
+        //In Seconds
+        public const int REGEN_TIME = 10;
+        public const int ENEMY_ACTION = 20;
+        public const int ENEMY_RESPAWN = 180;
 
         //Public Datamembers
         public DiscorgimonOutputCallback outputCallbackMethod;
@@ -51,6 +54,7 @@ namespace Discorgimon
         List<Discorgi> players;
         InputMessage input;
         Random random;
+        int threadCounter;
 
         //Constructor
         //callback: Method which outputs data to the text area
@@ -60,18 +64,34 @@ namespace Discorgimon
             programRunning = true;
             players = new List<Discorgi>();
             random = new Random();
+            threadCounter = 0;
         }
 
         //Main Thread
+        //If you leave this thread running for 68 years, you will encounter an overflow error
         public void Begin()
         {
             LoadPlayers();
 
-            while (programRunning)
+            while (true)
             {
-                Refresh();
-                SavePlayers();
-                Thread.Sleep(REGEN_IN_SECONDS * 1000);
+                Thread.Sleep(1000);
+                threadCounter++; 
+
+                if (threadCounter % REGEN_TIME == 0)
+                {
+                    Refresh();
+                    SavePlayers();
+                }
+                if (threadCounter % ENEMY_ACTION == 0)
+                {
+                    ActivateEnemy();
+                }
+
+                if (threadCounter % ENEMY_RESPAWN == 0)
+                {
+                    CreateEnemy();
+                }
             }
         }
 
@@ -93,7 +113,7 @@ namespace Discorgimon
                 input.Parameter = "";
             }
 
-            switch (input.Command)
+            switch (input.Command.ToLower())
             {
                 case "catch": CreateDiscorgi(); break;
                 case "release": ReleaseDiscorgi();break;
@@ -102,7 +122,7 @@ namespace Discorgimon
                 case "check": CheckPlayer(); break;
                 case "attack": Attack(); break;
                 case "heal": Heal(); break;
-                case "exit": programRunning = false; break;
+                case "showall": ShowAll(); break;
                     //DEBUG
                 case "dlevel": DEBUGLevel(); break;
                 case "dcreate": DEBUGCreate(); break;
@@ -115,10 +135,8 @@ namespace Discorgimon
         {
             foreach (Discorgi player in players)
             {
-                if (player.Energy < player.MaxEnergy)
-                    player.Energy++;
-                if (player.Health < player.MaxHealth)
-                    player.Health++;
+                player.Heal(1);
+                player.Energize(1);
             }
         }
 
@@ -127,13 +145,24 @@ namespace Discorgimon
             int playerIndex = 0;
             bool searching = true;
 
+            //Search for a player with that name
             while (searching && playerIndex < players.Count)
-                if (players[playerIndex].Owner.Equals(ownerName,StringComparison.OrdinalIgnoreCase))
+                if (players[playerIndex].Owner.Equals(ownerName, StringComparison.OrdinalIgnoreCase))
                     searching = false;
                 else
                     playerIndex++;
-            if (searching)
-                playerIndex = -1;
+            //No Player Found, search for Enemy with associated Pet Name
+            if (searching) 
+            {
+                playerIndex = 0;
+                while (searching && playerIndex < players.Count)
+                    if (players[playerIndex].PetName.Substring(players[playerIndex].PetName.IndexOf(' ') + 1).Equals(ownerName, StringComparison.OrdinalIgnoreCase))
+                        searching = false;
+                    else
+                        playerIndex++;
+                if (searching) //Nothing Found
+                    playerIndex = -1;
+            }
 
             return playerIndex;
         }
@@ -174,18 +203,16 @@ namespace Discorgimon
 
         void PrintHelp()
         {
-            /*
-            catch - Catches a Discorgi
-            catch <Name> - Catches a Discorgi and names them
-            release - Releases your existing Discorgi
-            check - Shows Info about your Discorgi
-            check <Username> - Shows Info another users Discorgi
-            stats - Shows Detailed Info about your Discorgi
-            stats <Username> - Shows Detailed Info another users Discorgi
-            attack <Username> - Performs an attack on another users Discorgi
-            heal <Username> - Heals the specified users Discorgi
-            */
-            Output("Commands: Catch, Release, Check, Stats, Attack, Heal");
+            switch(input.Parameter.ToLower())
+            {
+                case "catch": Output("catch - Catches a Discorgi\ncatch < Name > -Catches a Discorgi and names them"); break;
+                case "release": Output("release - Releases your existing Discorgi"); break;
+                case "check": Output("check - Shows Info about your Discorgi\ncheck < Username > -Shows Info another users Discorgi"); break;
+                case "stats": Output("stats - Shows Detailed Info about your Discorgi\nstats < Username > -Shows Detailed Info another users Discorgi"); break;
+                case "attack": Output("attack <Username> - Performs an attack on another users Discorgi"); break;
+                case "heal": Output("heal <Username> - Heals the specified users Discorgi"); break;
+                default: Output("Commands: Catch, Release, Check, Stats, Attack, Heal"); break;
+            }
         }
 
         void StatusPlayer()
@@ -306,9 +333,7 @@ namespace Discorgimon
                         if(players[atkIndex].AddExp(1))
                             Output($"**【{players[atkIndex].PetName}】** has reached level {players[atkIndex].Level}!");
 
-                        players[defIndex].Health += healing;
-                        if (players[defIndex].Health > players[defIndex].MaxHealth)
-                            players[defIndex].Health = players[defIndex].MaxHealth;
+                        players[defIndex].Heal(healing);
 
                         Output($"**【{players[atkIndex].PetName}】** performs {Discorgi.RandomHeal()} healing **【{players[defIndex].PetName}】** for {healing}");
                     }
@@ -320,9 +345,7 @@ namespace Discorgimon
                         players[atkIndex].HealsMade++;
                         players[atkIndex].HealingDone += healing;
 
-                        players[defIndex].Health += healing;
-                        if (players[defIndex].Health > players[defIndex].MaxHealth)
-                            players[defIndex].Health = players[defIndex].MaxHealth;
+                        players[defIndex].Heal(healing);
 
                         Output($"**【{players[atkIndex].PetName}】** performs {Discorgi.RandomHeal()} healing themself for {healing}");
                     }
@@ -352,9 +375,72 @@ namespace Discorgimon
                 }
                 else { Output($"You have to catch a Discorgi first."); }
             }
-            else { Output($"Usage: Attack <Username>"); }
+            else { Output($"Usage: {input.Command} <Username>"); }
 
             return validity;
+        }
+
+        void CreateEnemy()
+        {
+            //Create Enemy if one does not exist
+            int playerIndex = FindPlayer("Enemy");
+
+            if (!playerIndex.IsFound())
+            {
+                Discorgi player = new Discorgi("Enemy", Discorgi.RandomEnemyName());
+
+                //LEVEL UP!
+                int enemyLevel = random.Next(1, 10);
+                for (int i = 0; i < enemyLevel; i++) { player.LevelUp(); }
+
+                players.Add(player);
+
+                Output($"A wild level {player.Level} **【{player.PetName}】** has appeared!");
+            }
+        }
+
+        void ActivateEnemy()
+        {
+            int playerIndex = FindPlayer("Enemy");
+
+            //If enemy exists, it attacks another random player
+            if(playerIndex.IsFound() && players.Count > 1)
+            {
+                int atkIndex = FindPlayer("Enemy");
+                int defIndex;
+                do{defIndex = random.Next(players.Count);}
+                while (defIndex == atkIndex);
+
+                int damage = (int)(random.Next((int)(players[atkIndex].Attack / 2), players[atkIndex].Attack) / 1 + players[defIndex].Defence);
+
+                players[atkIndex].AttacksMade++;
+                players[atkIndex].DamageDone += damage;
+
+                players[defIndex].Health -= damage;
+                players[defIndex].DamageTaken += damage;
+
+                Output($"**【{players[atkIndex].PetName}】** performs {Discorgi.RandomAttack()} dealing {damage} damage to **【{players[defIndex].PetName}】**");
+
+                if (players[defIndex].Health <= 0)
+                {
+                    Output($"**【{ players[defIndex].PetName}】** has died.");
+
+                    players[atkIndex].Kills++;
+
+                    players.RemoveAt(defIndex);
+                }
+            }
+        }
+
+        void ShowAll()
+        {
+            foreach(Discorgi player in players)
+            {
+                if(!player.Owner.Equals("Enemy"))
+                {
+                    Output($"{player.Owner} - {player.PetName} ({player.Level})");
+                }
+            }
         }
 
         //DEBUG COMMANDS
@@ -372,7 +458,7 @@ namespace Discorgimon
             if (DEBUG)
             {
                 input.User = input.Parameter;
-                input.Parameter = "DEBUG";
+                input.Parameter = "DEBUG " + input.Parameter;
                 CreateDiscorgi();
             }
         }
@@ -439,6 +525,26 @@ namespace Discorgimon
             Kills = 0;
         }
 
+        internal void Heal(int amount)
+        {
+            if (Health < MaxHealth)
+            {
+                Health += amount;
+                if (Health > MaxHealth)
+                    Health = MaxHealth;
+            }
+        }
+
+        internal void Energize(int amount)
+        {
+            if (Energy < MaxEnergy)
+            {
+                Energy += amount;
+                if (Energy > MaxEnergy)
+                    Energy = MaxEnergy;
+            }
+        }
+
         internal bool AddExp(int exp)
         {
             bool causedLevelUp = false;
@@ -482,215 +588,67 @@ namespace Discorgimon
 
         static String[] Names =
         {
-            "Angel",
-            "Bagel",
-            "Bellatrix",
-            "Biscuit",
-            "Bobbafett",
-            "Bubbles",
-            "Candy",
-            "Cimmanom",
-            "Cleopatra",
-            "Cupcake",
-            "Doc",
-            "Felix",
-            "Jade",
-            "Marshmellow",
-            "Muggles",
-            "Noodle",
-            "Officer McSmiggles",
-            "Paddington",
-            "Pixie",
-            "President Dwayne Elizondo Mountain Dew Herbert Camacho",
-            "Robin Hood",
-            "Ruby",
-            "Shady Dave",
-            "Tank",
-            "Tonka",
-            "Waddles",
-            "Waffle",
-            "Wilbur",
-            "Yoshi",
-            "Zelda",
+            "Angel", "Bagel", "Bellatrix", "Biscuit", "Bobbafett", "Bubbles", "Candy", "Cimmanom", "Cleopatra", "Cupcake", "Doc", "Felix", "Jade", "Marshmellow", "Muggles", "Noodle", "Officer McSmiggles", "Paddington", "Pixie", "President Dwayne Elizondo Mountain Dew Herbert Camacho", "Robin Hood", "Ruby", "Shady Dave", "Tank", "Tonka", "Waddles", "Waffle", "Wilbur", "Yoshi", "Zelda",
         };
 
         internal static string RandomName()
         {
             Random random = new Random();
-
             return Names[random.Next(Names.Length)];
         }
 
         static String[] Accesories =
         {
             //wearing 
-            "glasses",
-            "a headband",
-            "a chefs hat",
-            "a thor costume",
-            "nunchucks",
-            "the cursed blade Muramasa",
-            "earings",
-            "a snuggie",
-            "their childhood blanket",
-            "a frying pan",
-            "slippers",
-            "a waffle iron",
-            "glitter",
-            "sunglasses",
-            "a penguin costume",
-            "a hairnet",
-            "a thing",
-            "a hoodie",
-            "a houseplant",
-            "nothing ;)",
-            "a broken discoball",
-            "a letters jacket",
-            "a football helmet",
-            "a moustache",
-            "an octopus hat",
-            "a graduation gown",
-            "too much cologne",
-            "a poncho",
-            "a helmet",
-            "a noose :(",
-            "16 dog years of regret",
-            "a no ragrets tattoo",
-            "a newspaper hat",
-            "way too many hats",
+            "glasses", "a headband", "a chefs hat", "a thor costume", "nunchucks", "the cursed blade Muramasa", "earings", "a snuggie", "their childhood blanket", "a frying pan", "slippers", "a waffle iron", "glitter", "sunglasses", "a penguin costume", "a hairnet", "a thing", "a hoodie", "a houseplant", "nothing ;)", "a broken discoball", "a letters jacket", "a football helmet", "a moustache", "an octopus hat", "a graduation gown", "too much cologne", "a poncho", "a helmet", "a noose :(", "16 dog years of regret", "a no ragrets tattoo", "a newspaper hat", "way too many hats",
         };
 
         internal static string RandomAccesory()
         {
             Random random = new Random();
-
             return Accesories[random.Next(Accesories.Length)];
         }
 
         static String[] MovesPrefix =
         {
             //Does
-            "a Rolling",
-            "an Awkward",
-            "a Shameful",
-            "an Alpha",
-            "an Unexplainable",
-            "an Omega",
-            "a Destined",
-            "a Useless",
-            "a Power",
-            "a Doomsday",
-            "a Consecutive",
-            "a Corkscrew",
-            "a Flying",
-            "a Double",
-            "an Illegal",
-            "a Testicular",
-            "an Ultimate",
-            "a Devistating",
-            "a Dragon",
-            "a Paragon",
-            "a Giga",
-            "a Terra",
-            "a Cyber",
-            "a Glowing",
-            "a Dominating",
-            "a Crazed",
-            "a Rocket",
-            "a Swift",
-            "a Super",
-            "an Uber",
-            "a Glorious",
-            "Secret Move:",
-            "an Uncoordinated",
-            "a Graceless",
-            "a Problematic",
-            "a Dazzeling",
-            "a Triumphant",
-            "an Enjoyable",
-            "a Wet Sounding",
-            "a Girlie",
-            "a Spastic",
-            "a Mocking",
+            "a Rolling", "an Awkward", "a Shameful", "an Alpha", "an Unexplainable", "an Omega", "a Destined", "a Useless", "a Power", "a Doomsday", "a Consecutive", "a Corkscrew", "a Flying", "a Double", "an Illegal", "a Testicular", "an Ultimate", "a Devistating", "a Dragon", "a Paragon", "a Giga", "a Terra", "a Cyber", "a Glowing", "a Dominating", "a Crazed", "a Rocket", "a Swift", "a Super", "an Uber", "a Glorious", "Secret Move:", "an Uncoordinated", "a Graceless", "a Problematic", "a Dazzeling", "a Triumphant", "an Enjoyable", "a Wet Sounding", "a Girlie", "a Spastic", "a Mocking",
         };
 
         static String[] AttackSuffix =
         {
-            "Backflip",
-            "Tackle",
-            "Punch",
-            "Karate Chop",
-            "Rocket Fist",
-            "Fireball",
-            "Dropkick",
-            "Heel Drop",
-            "Elbow Drop",
-            "Skull Crucher",
-            "Slide",
-            "Bicycle Kick",
-            "Pun",
-            "Explotion",
-            "Blast",
-            "Drillbreak",
-            "Wedgie",
-            "Meteor",
-            "Missile",
-            "Smash",
-            "Curse",
-            "Slash",
-            "Lance",
-            "Blaster",
-            "Pelvic Thrust",
-            "Juggle",
-            "Blizzard",
-            "Lightning",
-            "Kick",
-            "Wiggle",
-            "Technique",
-            "Wet Willie",
-            "Indian Burn",
-            "Noogie",
-            "Feint",
-            "Slap",
+            "Backflip", "Tackle", "Punch", "Karate Chop", "Rocket Fist", "Fireball", "Dropkick", "Heel Drop", "Elbow Drop", "Skull Crucher", "Slide", "Bicycle Kick", "Pun", "Explotion", "Blast", "Drillbreak", "Wedgie", "Meteor", "Missile", "Smash", "Curse", "Slash", "Lance", "Blaster", "Pelvic Thrust", "Juggle", "Blizzard", "Lightning", "Kick", "Wiggle", "Technique", "Wet Willie", "Indian Burn", "Noogie", "Feint", "Slap",
         };
 
         static String[] HealSuffix =
         {
-            "Praise",
-            "Compliment",
-            "Pick-Me-Up",
-            "Backrub",
-            "Nuzzle",
-            "Life Coaching",
-            "Inside Joke",
-            "Highfive",
-            "Chant",
-            "Incantation",
-            "Song",
-            "Serenade",
-            "Encourage",
-            "Cheer",
-            "Gift",
-            "Hug",
-            "Smooch",
-            "Piggy-Back Ride",
-            "Tickle",
+            "Praise","Compliment", "Pick-Me-Up", "Backrub", "Nuzzle", "Life Coaching", "Inside Joke", "Highfive", "Chant", "Incantation", "Song", "Serenade", "Encourage", "Cheer", "Gift", "Hug", "Smooch", "Piggy-Back Ride", "Tickle",
         };
 
         internal static string RandomAttack()
         {
             Random random = new Random();
-
             return MovesPrefix[random.Next(MovesPrefix.Length)] + " " + AttackSuffix[random.Next(AttackSuffix.Length)];
         }
 
         internal static string RandomHeal()
         {
             Random random = new Random();
-
             return MovesPrefix[random.Next(MovesPrefix.Length)] + " " + HealSuffix[random.Next(HealSuffix.Length)];
         }
 
+        static String[] EnemySuffix =
+        {
+            "Vacuum", "Monkey", "Dinosaur", "Evangelist", "Sock Puppet", "Action Figure", "Barbie", "Colosus", "Angel", "Rhino", "Butler", "Gary", "Justin Bieber", "Dragon",
+        };
+
+        //TODO: Need Unique Boss Prefix
+
+        internal static string RandomEnemyName()
+        {
+            Random random = new Random();
+            return MovesPrefix[random.Next(MovesPrefix.Length)] + " " + EnemySuffix[random.Next(EnemySuffix.Length)];
+        }
 
     }
 
